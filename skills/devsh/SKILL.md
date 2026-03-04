@@ -87,9 +87,48 @@ Tasks are the same as in the web app dashboard. CLI and web sync through Convex.
 - `devsh task list` - List active tasks
 - `devsh task list --archived` - List archived tasks
 - `devsh task create --repo owner/repo --agent claude-code "prompt"` - Create task
+- `devsh task create --cloud-workspace ...` - Create as cloud workspace (appears in Workspaces section)
 - `devsh task show <task-id>` - Get task details and runs
 - `devsh task stop <task-id>` - Stop/archive task
 - `devsh task memory <task-run-id>` - View agent memory for a task run
+
+Notes:
+- `devsh task create` uses a positional prompt argument. `--prompt` is not a valid flag.
+- For automation, prefer `--json` and poll with `devsh task show <task-id>` or `devsh task list` after creation.
+
+### Task Workflow: Branches and Pull Requests
+
+**Important:** Each task run automatically creates a new branch. Changes are NOT made to your existing branch.
+
+#### Branch Behavior
+- Each task creates a new branch: `{prefix}{task-slug}-{random-id}`
+- The branch prefix defaults to `dev/` and is user-configurable in web UI Settings > Git
+- Example: `devsh task create "Fix login bug"` creates branch `dev/fix-login-bug-x8k3a`
+- Changes are committed and pushed to this new branch automatically
+
+#### Auto-PR (Disabled by Default)
+When all agents complete, the system:
+1. **Crown evaluation**: Compares agent outputs and selects the best diff (winner)
+2. **Push**: Pushes the winning branch to the remote repository
+3. **PR creation**: Only if "Auto-PR" is enabled in Settings > General
+
+**To enable Auto-PR:**
+1. Open web UI (cmux.app or your deployment)
+2. Go to Settings > General
+3. Enable "Auto-create pull request with the best diff"
+
+**To manually create a PR after task completion:**
+```bash
+# View the task to find the winning branch
+devsh task show <task-id>
+
+# Create PR manually with gh CLI
+gh pr create --head dev/your-branch-name --title "Your PR title"
+```
+
+#### Single-Agent vs Multi-Agent Tasks
+- **Single agent**: Auto-crowned immediately when completed
+- **Multi-agent (Crown)**: Evaluates all diffs, crowns the best solution, then pushes
 
 ### Agent Memory
 View agent memory snapshots synced from sandboxes when agents complete.
@@ -111,6 +150,20 @@ Memory types: `knowledge`, `daily`, `tasks`, `mailbox`
 
 ### Agent Management
 - `devsh agent list` - List available coding agents
+
+### GitHub Projects (v2)
+Import markdown plans into GitHub Projects as draft issues. **Note:** Only organization projects work - user-owned projects don't work with GitHub Apps.
+
+- `devsh project import <file> --project-id <id> --installation-id <id>` - Import plan as draft issues
+- `devsh project import <file> --project-id <id> --dry-run` - Preview without importing
+
+```bash
+# Get project ID
+gh project list --owner <org> --format json | jq '.projects[].id'
+
+# Import plan (H2 sections become draft issues)
+devsh project import ./plan.md --project-id PVT_xxx --installation-id 12345
+```
 
 ### Browser Automation
 - `devsh computer snapshot <id>` - Get accessibility tree
